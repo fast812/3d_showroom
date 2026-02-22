@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D Showroom</title>
+  <style>
+    html, body { margin:0; height:100%; background:#f2f2f2; }
+    body { overflow:hidden; }
+    #c { width:100vw; height:100vh; display:block; }
+    .hint{
+      position:fixed; left:12px; bottom:12px;
+      padding:8px 10px; border-radius:10px;
+      background:rgba(0,0,0,.55); color:#fff;
+      font:13px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      user-select:none; z-index:10;
+    }
+    .topbar{
+      position:fixed; left:12px; top:12px;
+      display:flex; gap:8px; z-index:10;
+      background:rgba(255,255,255,.9); padding:8px;
+      border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,.12);
+      font:13px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    }
+    .topbar button{
+      cursor:pointer;
+      color:#111; padding:6px 10px;
+      border-radius:10px; background:#fff;
+      border:1px solid rgba(0,0,0,.08);
+    }
+    .topbar button.active{ border-color:rgba(0,0,0,.35); }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div class="topbar" id="topbar">
+    <button type="button" data-m="models/deer.glb">deer</button>
+    <button type="button" data-m="models/wolf.glb">wolf</button>
+    <button type="button" data-m="models/bear.glb">bear</button>
+  </div>
+
+  <div class="hint">드래그: 회전 · 휠/핀치: 확대 · 우클릭: 이동</div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf2f2f2);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 5000);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+
+    // 라이트
+    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+    const dir1 = new THREE.DirectionalLight(0xffffff, 1.0);
+    dir1.position.set(5, 10, 7);
+    scene.add(dir1);
+    const dir2 = new THREE.DirectionalLight(0xffffff, 0.6);
+    dir2.position.set(-5, 3, -7);
+    scene.add(dir2);
+
+    const loader = new GLTFLoader();
+
+    // ✅ 모델을 항상 이 그룹 안에만 넣고, 이 그룹을 기준으로 중앙 정렬/리셋
+    const modelRoot = new THREE.Group();
+    scene.add(modelRoot);
+
+    let currentModel = null;
+
+    function setActiveButton(modelPath) {
+      document.querySelectorAll('#topbar button').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.m === modelPath);
+      });
+    }
+
+    function disposeModel(node) {
+      node.traverse((obj) => {
+        if (obj.isMesh) {
+          obj.geometry?.dispose?.();
+          const mat = obj.material;
+          if (Array.isArray(mat)) mat.forEach(m => m.dispose?.());
+          else mat?.dispose?.();
+        }
+      });
+    }
+
+    function clearCurrentModel() {
+      if (!currentModel) return;
+      modelRoot.remove(currentModel);
+      disposeModel(currentModel);
+      currentModel = null;
+    }
+
+    // ✅ "항상 가운데" + "항상 같은 카메라/타겟 상태"로 맞추는 함수
+    function centerAndFit(object3D) {
+      // 0) 혹시 모를 기존 transform 리셋(모델마다 이상한 상태 남는 거 방지)
+      object3D.position.set(0, 0, 0);
+      object3D.rotation.set(0, 0, 0);
+      object3D.scale.set(1, 1, 1);
+      object3D.updateMatrixWorld(true);
+
+      // 1) bounding box 계산
+      const box = new THREE.Box3().setFromObject(object3D);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+
+      // 2) 모델을 "원점(0,0,0)"으로 이동(중앙 정렬)
+      object3D.position.sub(center);
+      object3D.updateMatrixWorld(true);
+
+      // 3) 이동 후 다시 크기 계산(정확)
+      const box2 = new THREE.Box3().setFromObject(object3D);
+      const size2 = box2.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size2.x, size2.y, size2.z);
+
+      // 4) 카메라 위치 계산
+      const fov = camera.fov * (Math.PI / 180);
+      let dist = (maxDim / 2) / Math.tan(fov / 2);
+      dist *= 1.6; // 여유 조금 더 줌(모델마다 잘림 방지)
+
+      camera.position.set(0, 0, dist);
+      camera.near = dist / 200;
+      camera.far  = dist * 200;
+      camera.updateProjectionMatrix();
+
+      // 5) OrbitControls 상태를 강제로 리셋
+      controls.target.set(0, 0, 0);
+      controls.update();
+      controls.saveState(); // 이 상태를 "기본 상태"로 저장
+      controls.reset();     // 이전 모델에서 남은 회전/팬 상태 제거
+    }
+
+    async function loadModel(modelPath) {
+      clearCurrentModel();
+      setActiveButton(modelPath);
+
+      // URL 갱신(공유용)
+      const newUrl = `${location.pathname}?m=${encodeURIComponent(modelPath)}`;
+      history.replaceState(null, '', newUrl);
+
+      loader.load(
+        modelPath,
+        (gltf) => {
+          currentModel = gltf.scene;
+
+          // ✅ 랩퍼에 넣기(항상 같은 기준점)
+          modelRoot.add(currentModel);
+
+          // ✅ 가운데 정렬 + 카메라/컨트롤 리셋
+          centerAndFit(currentModel);
+
+          autoRotate = true;
+        },
+        undefined,
+        (err) => console.error('GLB load error:', err)
+      );
+    }
+
+    // 초기 로드
+    const params = new URLSearchParams(location.search);
+    const initialModel = params.get('m') || 'models/deer.glb';
+
+    // 탭 클릭
+    document.querySelectorAll('#topbar button').forEach(btn => {
+      btn.addEventListener('click', () => loadModel(btn.dataset.m));
+    });
+
+    // 자동 회전(클릭하면 멈춤)
+    let autoRotate = true;
+    window.addEventListener('pointerdown', () => autoRotate = false, { passive: true });
+
+    window.addEventListener('resize', () => {
+      const w = window.innerWidth, h = window.innerHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    });
+
+    function render() {
+      if (currentModel && autoRotate) currentModel.rotation.y += 0.003;
+      controls.update();
+      renderer.render(scene, camera);
+      requestAnimationFrame(render);
+    }
+    render();
+
+    loadModel(initialModel);
+  </script>
+</body>
+</html>
