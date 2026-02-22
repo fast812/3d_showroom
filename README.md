@@ -39,7 +39,7 @@ Git for Windows 설치 프로그램을 설치
 
 Git from the command line and also from 3rd-party software (PATH 포함)
 
-설치 후 VS Code를 재시작하고:
+설치 후 VS Code를 재시작하고 확인:
 
 git --version
 2.2 macOS
@@ -69,7 +69,7 @@ Create repository
 
 아래는 “원하는 폴더로 이동(cd) → clone → 폴더 들어가기”까지 예시를 포함합니다.
 
- cd는 “폴더 이동” 명령입니다.
+cd는 “폴더 이동” 명령입니다.
 
 4.1 Windows (PowerShell) 예시
 예시 1) 바탕화면에 projects 폴더 만들고 그 안에 클론
@@ -126,7 +126,7 @@ JSON 문법 주의
 
 마지막 항목 뒤에 ,(쉼표) 붙이면 오류가 날 수 있습니다.
 
-대괄호 [ ] 구조 유지
+대괄호 [ ] 구조를 유지하세요.
 
 6.3 커밋 & 푸시
 
@@ -215,8 +215,10 @@ GitHub Pages 배포 반영에 시간이 걸릴 수 있습니다.
 
 일부 GLB는 구형 glTF 재질 확장(예: spec/gloss)을 포함해 경고가 날 수 있습니다.
 
-해결: Blender에서 해당 GLB를 다시 export(재-export) 하면 호환성이 좋아집니다.
+해결: Blender에서 해당 GLB를 다시 export(재-export)하면 호환성이 좋아집니다.
 
 11.3 모델이 너무 크고 느림
 
 폴리곤 수/텍스처 용량 최적화 후 업로드를 권장합니다.
+
+::contentReference[oaicite:0]{index=0}
