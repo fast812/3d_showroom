@@ -2,5 +2,6 @@
   { "name": "deer",   "file": "models/deer.glb" },
   { "name": "wolf",   "file": "models/wolf.glb" },
   { "name": "bear",   "file": "models/bear.glb" },
-  { "name": "rabbit", "file": "models/rabbit.glb" }
+  { "name": "rabbit", "file": "models/rabbit.glb" },
+  { "name": "bighorn", "file": "models/bighorn.glb" }
 ]
