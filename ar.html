@@ -8,8 +8,6 @@
   <style>
     html, body { margin:0; height:100%; background:#f2f2f2; }
     model-viewer { width:100vw; height:100vh; background:#f2f2f2; }
-
-    /* 상단 상태 표시(디버깅/안내용) */
     .hud{
       position:fixed; left:12px; top:12px; right:12px; z-index:50;
       padding:10px; border-radius:12px; background:rgba(255,255,255,.92);
@@ -17,16 +15,11 @@
       box-shadow:0 10px 30px rgba(0,0,0,.15);
       word-break:break-all;
     }
-    .hud small{ color:#444; display:block; margin-top:4px; }
-
-    /* 하단 안내 */
     .tip{
       position:fixed; left:12px; right:12px; bottom:12px; z-index:50;
       padding:10px; border-radius:12px; background:rgba(0,0,0,.60); color:#fff;
       font:13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial;
     }
-
-    /* ✅ 중앙 큰 AR 버튼 */
     .arbtn{
       position:fixed; left:50%; top:50%;
       transform:translate(-50%, -50%);
@@ -43,9 +36,6 @@
       box-shadow:0 16px 40px rgba(0,0,0,.28);
     }
     .arbtn:active{ transform:translate(-50%, -50%) scale(0.99); }
-
-    /* model-viewer가 AR 지원하지 않으면 버튼이 숨겨질 수도 있는데,
-       기본적으로 slot="ar-button"은 지원 상황에 맞춰 표시/숨김됨 */
   </style>
 </head>
 <body>
@@ -60,44 +50,48 @@
     ar-placement="floor"
     shadow-intensity="0.3">
 
-    <!-- ✅ 항상 눈에 띄는 커스텀 AR 버튼 -->
+    <!-- ✅ 중앙 큰 AR 버튼(항상 보이게) -->
     <button class="arbtn" slot="ar-button">AR로 크게 보기</button>
   </model-viewer>
 
   <div class="tip">
-    AR이 안 보이면: 바닥에 휴대폰을 비추고, 안내에 따라 화면을 탭해 배치해보세요.<br/>
-    (iPhone은 USDZ가 있으면 더 안정적입니다)
+    iPhone: 버튼을 누르면 Quick Look(AR)이 열립니다. <br/>
+    Android: 바닥을 비춘 뒤 화면을 탭해서 배치하세요.
   </div>
 
   <script>
     const mv = document.getElementById('mv');
     const hud = document.getElementById('hud');
 
-    // ar.html?m=models/rabbit.glb&usdz=models_usdz/rabbit.usdz (권장)
     const p = new URLSearchParams(location.search);
-    const m = p.get('m') || 'models/deer.glb';
-    const usdz = p.get('usdz');
+    const glb = p.get('m') || 'models/deer.glb';
+    const usdz = p.get('usdz') || '';  // iPhone용
 
-    mv.src = m;
-    if (usdz) mv.setAttribute('ios-src', usdz);
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-    hud.textContent = `모델 로딩 중…`;
-    hud.innerHTML = `src: ${m}<small>ios-src: ${usdz || '(없음)'}</small>`;
-
-    mv.addEventListener('load', () => {
-      hud.innerHTML = `✅ 모델 로드 완료<small>src: ${m}</small>`;
-    });
+    // ✅ 핵심: iOS는 GLB 로드를 아예 피하고, USDZ(ios-src)만 사용
+    if (isIOS) {
+      if (!usdz) {
+        hud.textContent = '❌ iPhone에서는 usdz 파라미터가 필요합니다.';
+      } else {
+        mv.removeAttribute('src');              // GLB 로딩 방지
+        mv.setAttribute('ios-src', usdz);       // Quick Look용
+        hud.textContent = `iPhone 모드 ✅ ios-src=${usdz}`;
+      }
+    } else {
+      // Android/PC: GLB 로드
+      mv.setAttribute('src', glb);
+      if (usdz) mv.setAttribute('ios-src', usdz); // 있어도 무해
+      hud.textContent = `Android/PC 모드 ✅ src=${glb}`;
+    }
 
     mv.addEventListener('error', (e) => {
-      hud.innerHTML =
-        `❌ 모델 로딩 실패<small>src: ${m}</small>` +
-        `<small>브라우저를 Safari(아이폰) / Chrome(안드로이드)로 열어보세요.</small>`;
       console.error(e);
+      hud.textContent = '❌ model-viewer error (콘솔 확인)';
     });
 
-    // AR 상태 확인(지원 브라우저에서만 의미 있음)
     mv.addEventListener('ar-status', (e) => {
-      hud.innerHTML += `<small>AR status: ${e.detail.status}</small>`;
+      hud.textContent += ` | AR status=${e.detail.status}`;
     });
   </script>
 </body>
