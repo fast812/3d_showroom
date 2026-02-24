@@ -41,6 +41,17 @@
     }
     #arBtn:active{ transform: translateY(1px); }
 
+    /* ✅ 애니메이션 버튼 */
+    #animBtn{
+      position:fixed; right:66px; bottom:14px; z-index:9999;
+      width:70px; height:46px; border-radius:999px; border:0;
+      background:#111; color:#fff; font:12px system-ui; font-weight:700;
+      cursor:pointer; box-shadow:0 10px 25px rgba(0,0,0,.25);
+      opacity:0.45;
+    }
+    #animBtn.enabled{ opacity:1; }
+    #animBtn:active{ transform: translateY(1px); }
+
     /* ✅ QR 모달 */
     #qrModal{
       position:fixed; inset:0; display:none; z-index:9998;
@@ -70,6 +81,9 @@
   <div class="topbar" id="topbar"></div>
 
   <div class="hint">드래그: 회전 · 휠/핀치: 확대 · 우클릭: 이동</div>
+
+  <!-- ✅ 애니메이션 버튼 -->
+  <button id="animBtn" type="button" title="애니메이션 재생/일시정지">ANIM</button>
 
   <!-- ✅ AR QR 버튼 -->
   <button id="arBtn" type="button" title="휴대폰으로 AR 보기">AR</button>
@@ -103,17 +117,28 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
     const topbar = document.getElementById('topbar');
+    const animBtn = document.getElementById('animBtn');
 
     const canvas = document.querySelector('#c');
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+
+    // ✅ 색/재질 개선: 물리 기반 + 톤매핑
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight, false);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    renderer.physicallyCorrectLights = true;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf2f2f2);
+
+    // ✅ 환경광(IBL) 추가: 모델 재질이 훨씬 자연스러워짐
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
     const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 5000);
 
@@ -121,11 +146,12 @@
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-    const dir1 = new THREE.DirectionalLight(0xffffff, 1.0);
+    // 라이트(너무 어두운 것 방지)
+    scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+    const dir1 = new THREE.DirectionalLight(0xffffff, 1.2);
     dir1.position.set(5, 10, 7);
     scene.add(dir1);
-    const dir2 = new THREE.DirectionalLight(0xffffff, 0.6);
+    const dir2 = new THREE.DirectionalLight(0xffffff, 0.8);
     dir2.position.set(-5, 3, -7);
     scene.add(dir2);
 
@@ -139,6 +165,35 @@
     let currentUsdzPath = null;    // ✅ (선택) iOS용 USDZ 경로
     let modelsList = [];           // ✅ models.json 로드 결과
 
+    // ✅ 애니메이션 재생 관련
+    let mixer = null;
+    let clock = new THREE.Clock();
+    let hasAnimation = false;
+    let animPlaying = false;
+    let animAction = null;
+
+    function setAnimButtonState() {
+      if (hasAnimation) {
+        animBtn.classList.add('enabled');
+        animBtn.disabled = false;
+        animBtn.textContent = animPlaying ? 'PAUSE' : 'PLAY';
+        animBtn.title = animPlaying ? '애니메이션 일시정지' : '애니메이션 재생';
+      } else {
+        animBtn.classList.remove('enabled');
+        animBtn.disabled = true;
+        animBtn.textContent = 'ANIM';
+        animBtn.title = '이 모델에는 애니메이션이 없습니다';
+      }
+    }
+
+    animBtn.addEventListener('click', () => {
+      if (!hasAnimation || !animAction) return;
+      animPlaying = !animPlaying;
+      // Mixer 업데이트를 멈추는 방식이 아니라 action의 paused 토글
+      animAction.paused = !animPlaying;
+      setAnimButtonState();
+    });
+
     function disposeModel(node) {
       node.traverse((obj) => {
         if (obj.isMesh) {
@@ -151,10 +206,19 @@
     }
 
     function clearCurrentModel() {
-      if (!currentModel) return;
-      modelRoot.remove(currentModel);
-      disposeModel(currentModel);
-      currentModel = null;
+      // 모델 제거
+      if (currentModel) {
+        modelRoot.remove(currentModel);
+        disposeModel(currentModel);
+        currentModel = null;
+      }
+      // 애니메이션 리셋
+      mixer = null;
+      animAction = null;
+      hasAnimation = false;
+      animPlaying = false;
+      clock = new THREE.Clock();
+      setAnimButtonState();
     }
 
     function centerAndFit(object3D) {
@@ -216,6 +280,21 @@
           modelRoot.add(currentModel);
           centerAndFit(currentModel);
           autoRotate = true;
+
+          // ✅ 애니메이션이 있으면 준비 (기본: 일단 정지 상태로 시작 → 버튼으로 재생)
+          if (gltf.animations && gltf.animations.length > 0) {
+            mixer = new THREE.AnimationMixer(currentModel);
+            animAction = mixer.clipAction(gltf.animations[0]);
+            animAction.reset();
+            animAction.play();
+            animAction.paused = true;  // 버튼 누르기 전까지 정지
+            hasAnimation = true;
+            animPlaying = false;
+          } else {
+            hasAnimation = false;
+            animPlaying = false;
+          }
+          setAnimButtonState();
         },
         undefined,
         (err) => console.error('GLB load error:', err)
@@ -224,7 +303,6 @@
 
     // ✅ models.json 읽어서 탭 자동 생성
     async function initTabsAndLoad() {
-      // 경로 꼬임 방지용(추천)
       const res = await fetch(new URL('models.json', location.href), { cache: 'no-store' });
       if (!res.ok) throw new Error('models.json 로드 실패');
       modelsList = await res.json();
@@ -245,7 +323,6 @@
       const requested = params.get('m');
       const first = modelsList[0]?.file || 'models/deer.glb';
 
-      // 요청 모델이 목록에 없으면 첫 번째로 fallback
       const valid = requested && modelsList.some(x => x.file === requested) ? requested : first;
 
       setActiveButton(valid);
@@ -263,6 +340,14 @@
     });
 
     function render() {
+      // ✅ 애니메이션 업데이트
+      if (mixer && animAction && animPlaying) {
+        mixer.update(clock.getDelta());
+      } else {
+        // 애니메이션을 안 쓸 때도 clock이 너무 커지지 않게 소모
+        clock.getDelta();
+      }
+
       if (currentModel && autoRotate) currentModel.rotation.y += 0.003;
       controls.update();
       renderer.render(scene, camera);
@@ -278,23 +363,18 @@
     const qrLink = document.getElementById('qrLink');
 
     function buildArUrl() {
-      // viewer.html이 있는 같은 디렉토리의 ar.html로 이동
+      // QR은 ar.html로 (거기서 iPhone/Android 처리)
       const url = new URL('ar.html', location.href);
       url.searchParams.set('m', currentModelPath || 'models/deer.glb');
-
-      // iOS Quick Look을 안정적으로 하려면 usdz가 있을 때만 추가
       if (currentUsdzPath) url.searchParams.set('usdz', currentUsdzPath);
-
       return url.toString();
     }
 
     function openQr() {
       const arUrl = buildArUrl();
       qrBox.innerHTML = '';
-      // QR 생성
       new QRCode(qrBox, { text: arUrl, width: 216, height: 216 });
 
-      // 링크도 같이 제공
       qrLink.href = arUrl;
       qrLink.textContent = arUrl;
 
@@ -310,6 +390,7 @@
     qrModal.addEventListener('click', (e) => { if (e.target === qrModal) closeQr(); });
 
     // 초기화
+    setAnimButtonState();
     initTabsAndLoad().catch(err => console.error(err));
   </script>
 </body>
