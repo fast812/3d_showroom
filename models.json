@@ -1,7 +1,7 @@
 [
-  { "name": "deer",   "file": "models/deer.glb" },
-  { "name": "wolf",   "file": "models/wolf.glb" },
-  { "name": "bear",   "file": "models/bear.glb" },
-  { "name": "rabbit", "file": "models/rabbit.glb" },
-  { "name": "bighorn", "file": "models/bighorn.glb" }
+  { "name": "deer",   "file": "models/deer.glb",   "usdz": "models_usdz/deer.usdz" },
+  { "name": "wolf",   "file": "models/wolf.glb",   "usdz": "models_usdz/wolf.usdz" },
+  { "name": "bear",   "file": "models/bear.glb",   "usdz": "models_usdz/bear.usdz" },
+  { "name": "rabbit", "file": "models/rabbit.glb", "usdz": "models_usdz/rabbit.usdz" },
+  { "name": "bighorn", "file": "models/bighorn.glb", "usdz": "models_usdz/bighorn.usdz" }
 ]

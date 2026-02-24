@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AR Viewer</title>
+
+  <!-- model-viewer -->
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+
+  <style>
+    html, body { margin:0; height:100%; background:#f2f2f2; }
+    model-viewer { width:100vw; height:100vh; background:#f2f2f2; }
+    .tip{
+      position:fixed; left:12px; bottom:12px;
+      padding:8px 10px; border-radius:10px;
+      background:rgba(0,0,0,.55); color:#fff;
+      font:13px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      user-select:none;
+    }
+  </style>
+</head>
+<body>
+  <model-viewer id="mv"
+    camera-controls
+    autoplay
+    ar
+    ar-scale="auto"
+    ar-modes="webxr scene-viewer quick-look"
+    shadow-intensity="0.3">
+  </model-viewer>
+
+  <div class="tip">AR 버튼을 눌러 AR로 보세요 (iPhone: Quick Look)</div>
+
+  <script>
+    // 사용 예:
+    // ar.html?m=models/rabbit.glb
+    // ar.html?m=models/rabbit.glb&usdz=models_usdz/rabbit.usdz  (iPhone 강추)
+    const p = new URLSearchParams(location.search);
+    const m = p.get('m') || 'models/deer.glb';
+    const usdz = p.get('usdz'); // 있으면 iPhone Quick Look 안정성↑
+
+    const mv = document.getElementById('mv');
+    mv.setAttribute('src', m);
+    if (usdz) mv.setAttribute('ios-src', usdz);
+  </script>
+</body>
+</html>
