@@ -1,4 +1,5 @@
 [
+  { "name": "robot", "file": "models/robot.glb", "usdz": "models_usdz/robot.usdz" },
   { "name": "deer",   "file": "models/deer.glb",   "usdz": "models_usdz/deer.usdz" },
   { "name": "wolf",   "file": "models/wolf.glb",   "usdz": "models_usdz/wolf.usdz" },
   { "name": "bear",   "file": "models/bear.glb",   "usdz": "models_usdz/bear.usdz" },
