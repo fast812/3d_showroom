@@ -7,7 +7,11 @@
   <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
   <style>
     html, body { margin:0; height:100%; background:#f2f2f2; }
-    model-viewer { width:100vw; height:100vh; background:#f2f2f2; }
+    #wrap { width:100vw; height:100vh; }
+
+    /* Android/PC에서만 보일 model-viewer */
+    model-viewer { width:100vw; height:100vh; background:#f2f2f2; display:none; }
+
     .hud{
       position:fixed; left:12px; top:12px; right:12px; z-index:50;
       padding:10px; border-radius:12px; background:rgba(255,255,255,.92);
@@ -15,84 +19,112 @@
       box-shadow:0 10px 30px rgba(0,0,0,.15);
       word-break:break-all;
     }
-    .tip{
-      position:fixed; left:12px; right:12px; bottom:12px; z-index:50;
-      padding:10px; border-radius:12px; background:rgba(0,0,0,.60); color:#fff;
-      font:13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial;
-    }
-    .arbtn{
+
+    /* ✅ 항상 보이는 중앙 큰 버튼 */
+    .mainbtn{
       position:fixed; left:50%; top:50%;
       transform:translate(-50%, -50%);
       z-index:100;
-      width:min(320px, calc(100vw - 48px));
+      width:min(340px, calc(100vw - 48px));
       padding:16px 18px;
       border-radius:16px;
       border:0;
       background:#111;
       color:#fff;
       font:16px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      font-weight:700;
+      font-weight:800;
       cursor:pointer;
       box-shadow:0 16px 40px rgba(0,0,0,.28);
     }
-    .arbtn:active{ transform:translate(-50%, -50%) scale(0.99); }
+    .mainbtn:active{ transform:translate(-50%, -50%) scale(0.99); }
+
+    .tip{
+      position:fixed; left:12px; right:12px; bottom:12px; z-index:50;
+      padding:10px; border-radius:12px; background:rgba(0,0,0,.60); color:#fff;
+      font:13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    }
+
+    a.hiddenlink{ display:none; }
   </style>
 </head>
 <body>
   <div class="hud" id="hud">로딩 중…</div>
 
-  <model-viewer id="mv"
-    camera-controls
-    autoplay
-    ar
-    ar-scale="auto"
-    ar-modes="webxr scene-viewer quick-look"
-    ar-placement="floor"
-    shadow-intensity="0.3">
+  <div id="wrap">
+    <!-- Android/PC에서만 켬 -->
+    <model-viewer id="mv"
+      camera-controls
+      autoplay
+      ar
+      ar-scale="auto"
+      ar-modes="webxr scene-viewer quick-look"
+      ar-placement="floor"
+      shadow-intensity="0.3">
+    </model-viewer>
+  </div>
 
-    <!-- ✅ 중앙 큰 AR 버튼(항상 보이게) -->
-    <button class="arbtn" slot="ar-button">AR로 크게 보기</button>
-  </model-viewer>
+  <!-- ✅ iPhone Quick Look을 “직접” 열기 위한 링크 (버튼에서 클릭 트리거) -->
+  <a id="quicklook" class="hiddenlink" rel="ar" href="#">quicklook</a>
 
-  <div class="tip">
-    iPhone: 버튼을 누르면 Quick Look(AR)이 열립니다. <br/>
+  <button id="btn" class="mainbtn" type="button">AR로 크게 보기</button>
+
+  <div class="tip" id="tip">
+    iPhone: 버튼을 누르면 Quick Look(AR)이 바로 열립니다.<br/>
     Android: 바닥을 비춘 뒤 화면을 탭해서 배치하세요.
   </div>
 
   <script>
-    const mv = document.getElementById('mv');
     const hud = document.getElementById('hud');
+    const tip = document.getElementById('tip');
+    const btn = document.getElementById('btn');
+    const mv = document.getElementById('mv');
+    const quicklook = document.getElementById('quicklook');
 
     const p = new URLSearchParams(location.search);
     const glb = p.get('m') || 'models/deer.glb';
-    const usdz = p.get('usdz') || '';  // iPhone용
-
+    const usdz = p.get('usdz'); // iPhone용
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-    // ✅ 핵심: iOS는 GLB 로드를 아예 피하고, USDZ(ios-src)만 사용
+    // 화면 상단 표시(디버깅)
+    hud.textContent = `src(GLB): ${glb}\nios-src(USDZ): ${usdz || '(없음)'}\nUA: ${navigator.userAgent}`;
+
     if (isIOS) {
+      // ✅ iPhone: model-viewer를 아예 쓰지 않고 USDZ를 Quick Look으로 직행
+      mv.style.display = 'none';
       if (!usdz) {
-        hud.textContent = '❌ iPhone에서는 usdz 파라미터가 필요합니다.';
+        tip.innerHTML = '❌ iPhone에서는 usdz 파라미터가 필요합니다.<br/>예: &usdz=models_usdz/rabbit.usdz';
+        btn.textContent = 'USDZ 링크가 필요함';
+        btn.disabled = true;
       } else {
-        mv.removeAttribute('src');              // GLB 로딩 방지
-        mv.setAttribute('ios-src', usdz);       // Quick Look용
-        hud.textContent = `iPhone 모드 ✅ ios-src=${usdz}`;
+        // Quick Look 링크 세팅
+        const u = new URL(usdz, location.href).toString(); // 상대경로 -> 절대경로
+        quicklook.href = u;
+
+        btn.addEventListener('click', () => {
+          // iOS에서는 링크 클릭이 Quick Look 실행에 가장 확실
+          quicklook.click();
+        });
       }
     } else {
-      // Android/PC: GLB 로드
-      mv.setAttribute('src', glb);
-      if (usdz) mv.setAttribute('ios-src', usdz); // 있어도 무해
-      hud.textContent = `Android/PC 모드 ✅ src=${glb}`;
+      // ✅ Android/PC: model-viewer로 AR
+      mv.style.display = 'block';
+      mv.src = glb;
+
+      btn.addEventListener('click', async () => {
+        // model-viewer AR 실행(지원 기기에서)
+        try {
+          if (typeof mv.activateAR === 'function') {
+            await mv.activateAR();
+          } else {
+            // 혹시 activateAR이 없는 경우를 대비해 안내
+            alert('이 기기/브라우저에서는 AR을 지원하지 않을 수 있어요. Chrome에서 열어보세요.');
+          }
+        } catch (e) {
+          console.error(e);
+          alert('AR 실행에 실패했습니다. Chrome에서 열고 바닥을 비춘 후 다시 시도해보세요.');
+        }
+      });
     }
-
-    mv.addEventListener('error', (e) => {
-      console.error(e);
-      hud.textContent = '❌ model-viewer error (콘솔 확인)';
-    });
-
-    mv.addEventListener('ar-status', (e) => {
-      hud.textContent += ` | AR status=${e.detail.status}`;
-    });
   </script>
 </body>
 </html>
